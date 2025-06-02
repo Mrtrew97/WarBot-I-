@@ -25,10 +25,10 @@ const client = new Client({
 });
 
 const EMOJI_TO_NAME = {
-  '🔴': '🔴 Emergency',
-  '🔵': '🔵 No war Merit Trading Allowed',
-  '🟢': '🟢 Peaceful Zone',
-  '🟡': '🟡 Caution Zone',
+  '🔴': '🔴 Emergency Need everyone',
+  '🔵': '🔵 No War',
+  '🟢': '🟢 Active War',
+  '🟡': '🟡 Active Skirmish',
 };
 
 let warMessageId = null;
