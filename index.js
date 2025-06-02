@@ -46,7 +46,7 @@ client.once('ready', async () => {
   }
 
   const warMessage = await botCommands.send({
-    content: `🛡️ **Alliance War Status**\n\n🔵 = no fights, merit trading is allowed\n🟢 = active war, no emergency\n🟡 = very active fighting, try to be online\n🔴 = emergency, everyone online!!`,
+    content: `🛡️ **Alliance War Status**\n\n🔵 = No War\n🟢 = Active War\n🟡 = Active Skirmish\n🔴 = Emergency Need Everyone`,
   });
 
   warMessageId = warMessage.id;
