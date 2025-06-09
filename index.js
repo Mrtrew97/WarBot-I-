@@ -170,13 +170,16 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 });
 
-// Login and error catching
+// Extra event listeners for better debugging
+client.on('warn', warn => console.warn('⚠️ Client warning:', warn));
+client.on('error', err => console.error('❌ Client error:', err));
+process.on('unhandledRejection', err => console.error('❌ Unhandled Promise Rejection:', err));
+
+// Extra debug before login
+console.log('🔄 Starting Discord client login...');
 client.login(process.env.DISCORD_TOKEN)
   .then(() => console.log('✅ Bot login successful'))
   .catch(err => {
     console.error('❌ Bot login failed:', err);
     process.exit(1);
   });
-
-client.on('error', err => console.error('❌ Client error:', err));
-process.on('unhandledRejection', err => console.error('❌ Unhandled Promise Rejection:', err));
