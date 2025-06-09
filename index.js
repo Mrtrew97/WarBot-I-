@@ -35,7 +35,16 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
+// Mapping emoji to valid Discord channel names (lowercase, no spaces)
 const EMOJI_TO_NAME = {
+  '🔴': 'emergency-need-everyone',
+  '🔵': 'no-war',
+  '🟢': 'active-war',
+  '🟡': 'active-skirmish',
+};
+
+// Mapping emoji to friendly labels for messages
+const EMOJI_TO_LABEL = {
   '🔴': '🔴 Emergency Need everyone',
   '🔵': '🔵 No War',
   '🟢': '🟢 Active War',
@@ -50,19 +59,28 @@ async function sendWarMessage(guild) {
     console.error('❌ bot-commands channel not found.');
     return null;
   }
+
+  const contentLines = ['🛡️ **Alliance War Status**\n'];
+  for (const emoji of ['🔵', '🟢', '🟡', '🔴']) {
+    contentLines.push(`${EMOJI_TO_LABEL[emoji]}`);
+  }
+
   const warMessage = await botCommands.send({
-    content: `🛡️ **Alliance War Status**\n\n🔵 = No War\n🟢 = Active War\n🟡 = Active Skirmish\n🔴 = Emergency Need Everyone`,
+    content: contentLines.join('\n'),
   });
+
   for (const emoji of ['🔵', '🟢', '🟡', '🔴']) {
     await warMessage.react(emoji);
     console.log(`✅ Reacted with ${emoji}`);
   }
+
   console.log('✅ War status message sent.');
   return warMessage.id;
 }
 
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
+
   const guild = await client.guilds.fetch(process.env.GUILD_ID).catch(err => {
     console.error('❌ Error fetching guild:', err);
     return null;
@@ -120,9 +138,11 @@ client.on(Events.InteractionCreate, async interaction => {
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
   if (user.bot) return;
+
   try {
     if (reaction.partial) await reaction.fetch();
     if (reaction.message.partial) await reaction.message.fetch();
+
     if (reaction.message.id !== warMessageId) return;
 
     const newName = EMOJI_TO_NAME[reaction.emoji.name];
@@ -138,11 +158,15 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
       return;
     }
 
-    await Promise.race([
-      warChannel.setName(newName),
-      new Promise((_, rj) => setTimeout(() => rj(new Error('Rename timeout')), 15000))
-    ]);
-    console.log(`✏️ Renamed war-time to ${newName}`);
+    try {
+      await Promise.race([
+        warChannel.setName(newName),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Rename timeout')), 15000))
+      ]);
+      console.log(`✏️ Renamed war-time to "${newName}"`);
+    } catch (err) {
+      console.error('❌ Failed to rename war-time channel:', err);
+    }
   } catch (err) {
     console.error('❌ Reaction processing error:', err);
   } finally {
