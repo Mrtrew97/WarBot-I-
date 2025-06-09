@@ -22,6 +22,13 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server running on port ${PORT}`);
 });
 
+// Debug .env
+console.log('🔍 Environment Check:');
+console.log('DISCORD_TOKEN:', process.env.DISCORD_TOKEN ? '✅ Loaded' : '❌ MISSING');
+console.log('GUILD_ID:', process.env.GUILD_ID ? '✅ Loaded' : '❌ MISSING');
+console.log('BOT_COMMANDS_CHANNEL_ID:', process.env.BOT_COMMANDS_CHANNEL_ID ? '✅ Loaded' : '❌ MISSING');
+console.log('WAR_TIME_CHANNEL_ID:', process.env.WAR_TIME_CHANNEL_ID ? '✅ Loaded' : '❌ MISSING');
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -65,11 +72,15 @@ async function sendWarMessage(guild) {
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
-  const guild = await client.guilds.fetch(process.env.GUILD_ID);
-  const warChannel = guild.channels.cache.get(process.env.WAR_TIME_CHANNEL_ID);
+  const guild = await client.guilds.fetch(process.env.GUILD_ID).catch(err => {
+    console.error('❌ Failed to fetch guild:', err);
+    return null;
+  });
+  if (!guild) return;
 
-  if (!guild || !warChannel) {
-    console.error('❌ Required guild or war-time channel not found.');
+  const warChannel = guild.channels.cache.get(process.env.WAR_TIME_CHANNEL_ID);
+  if (!warChannel) {
+    console.error('❌ war-time channel not found.');
     return;
   }
 
@@ -169,10 +180,14 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 });
 
+// 🛡️ Final catch for login
 client.login(process.env.DISCORD_TOKEN)
   .then(() => console.log('✅ Bot login successful'))
   .catch(err => {
     console.error('❌ Bot login failed:', err);
-    process.exit(1); // Exit to make Render restart the service
+    process.exit(1); // force restart to show logs
   });
 
+// Catch crashes
+client.on('error', err => console.error('❌ Discord client error:', err));
+process.on('unhandledRejection', err => console.error('❌ Unhandled Promise Rejection:', err));
