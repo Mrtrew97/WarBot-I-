@@ -105,7 +105,7 @@ client.on(Events.InteractionCreate, async interaction => {
   const guild = interaction.guild;
   const botCommands = guild.channels.cache.get(process.env.BOT_COMMANDS_CHANNEL_ID);
   if (!botCommands) {
-    return interaction.reply({ content: '❌ Cannot find bot-commands channel.', ephemeral: true });
+    return interaction.reply({ content: '❌ Cannot find bot-commands channel.', flags: 64 });
   }
 
   if (interaction.commandName === 'resetwarbot') {
@@ -117,15 +117,15 @@ client.on(Events.InteractionCreate, async interaction => {
         console.log('🗑️ Deleted old war status message.');
       }
       warMessageId = await sendWarMessage(guild);
-      return interaction.reply({ content: '♻️ War status reset.', ephemeral: true });
+      return interaction.reply({ content: '♻️ War status reset.', flags: 64 });
     } catch (err) {
       console.error('❌ Reset failed:', err);
-      return interaction.reply({ content: '❌ Failed to reset war status.', ephemeral: true });
+      return interaction.reply({ content: '❌ Failed to reset war status.', flags: 64 });
     }
   }
 
   if (interaction.commandName === 'stopwarbot') {
-    await interaction.reply({ content: '🛑 Stopping War Bot now...', ephemeral: true });
+    await interaction.reply({ content: '🛑 Stopping War Bot now...', flags: 64 });
     console.log('🛑 Stop command received. Logging out...');
     await client.destroy();
     console.log('👋 Bot logged out, exiting process.');
