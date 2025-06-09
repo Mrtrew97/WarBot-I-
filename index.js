@@ -35,20 +35,11 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
-// Mapping emoji to valid Discord channel names (lowercase, no spaces)
 const EMOJI_TO_NAME = {
-  '🔴': 'emergency-need-everyone',
-  '🔵': 'no-war',
-  '🟢': 'active-war',
-  '🟡': 'active-skirmish',
-};
-
-// Mapping emoji to friendly labels for messages
-const EMOJI_TO_LABEL = {
-  '🔴': '🔴 Emergency Need everyone',
-  '🔵': '🔵 No War',
-  '🟢': '🟢 Active War',
-  '🟡': '🟡 Active Skirmish',
+  '🔴': '🔴-emergency',
+  '🟢': '🟢-active-war',
+  '🔵': '🔵-no-war',
+  '🟡': '🟡-active-skirmish',
 };
 
 let warMessageId = null;
@@ -59,21 +50,13 @@ async function sendWarMessage(guild) {
     console.error('❌ bot-commands channel not found.');
     return null;
   }
-
-  const contentLines = ['🛡️ **Alliance War Status**\n'];
-  for (const emoji of ['🔵', '🟢', '🟡', '🔴']) {
-    contentLines.push(`${EMOJI_TO_LABEL[emoji]}`);
-  }
-
   const warMessage = await botCommands.send({
-    content: contentLines.join('\n'),
+    content: `🛡️ **Alliance War Status**\n\n🔵 = No War\n🟢 = Active War\n🟡 = Active Skirmish\n🔴 = Emergency Need Everyone`,
   });
-
   for (const emoji of ['🔵', '🟢', '🟡', '🔴']) {
     await warMessage.react(emoji);
     console.log(`✅ Reacted with ${emoji}`);
   }
-
   console.log('✅ War status message sent.');
   return warMessage.id;
 }
@@ -95,17 +78,22 @@ client.once('ready', async () => {
 
   warMessageId = await sendWarMessage(guild);
 
-  // Register slash command
+  // Register slash commands
   const commands = [
     new SlashCommandBuilder()
       .setName('resetwarbot')
       .setDescription('Reset the war status message and reactions.')
+      .toJSON(),
+    new SlashCommandBuilder()
+      .setName('stopwarbot')
+      .setDescription('Stop the war bot cleanly.')
       .toJSON()
   ];
+
   const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
   try {
     await rest.put(Routes.applicationGuildCommands(client.user.id, guild.id), { body: commands });
-    console.log('✅ Slash command /resetwarbot registered.');
+    console.log('✅ Slash commands /resetwarbot and /stopwarbot registered.');
   } catch (error) {
     console.error('❌ Slash command registration failed:', error);
   }
@@ -114,12 +102,13 @@ client.once('ready', async () => {
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
+  const guild = interaction.guild;
+  const botCommands = guild.channels.cache.get(process.env.BOT_COMMANDS_CHANNEL_ID);
+  if (!botCommands) {
+    return interaction.reply({ content: '❌ Cannot find bot-commands channel.', ephemeral: true });
+  }
+
   if (interaction.commandName === 'resetwarbot') {
-    const guild = interaction.guild;
-    const botCommands = guild.channels.cache.get(process.env.BOT_COMMANDS_CHANNEL_ID);
-    if (!botCommands) {
-      return interaction.reply({ content: '❌ Cannot find bot-commands channel.', ephemeral: true });
-    }
     try {
       const fetched = await botCommands.messages.fetch({ limit: 10 });
       const oldMsg = fetched.find(m => m.id === warMessageId);
@@ -134,20 +123,26 @@ client.on(Events.InteractionCreate, async interaction => {
       return interaction.reply({ content: '❌ Failed to reset war status.', ephemeral: true });
     }
   }
+
+  if (interaction.commandName === 'stopwarbot') {
+    await interaction.reply({ content: '🛑 Stopping War Bot now...', ephemeral: true });
+    console.log('🛑 Stop command received. Logging out...');
+    await client.destroy();
+    console.log('👋 Bot logged out, exiting process.');
+    process.exit(0);
+  }
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
   if (user.bot) return;
-
   try {
     if (reaction.partial) await reaction.fetch();
     if (reaction.message.partial) await reaction.message.fetch();
-
     if (reaction.message.id !== warMessageId) return;
 
     const newName = EMOJI_TO_NAME[reaction.emoji.name];
     if (!newName) {
-      console.log('⚠️ Unknown emoji:', reaction.emoji.name);
+      console.log('⚠️ Unknown emoji reaction:', reaction.emoji.name);
       return;
     }
 
@@ -159,21 +154,18 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     }
 
     try {
-      await Promise.race([
-        warChannel.setName(newName),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Rename timeout')), 15000))
-      ]);
-      console.log(`✏️ Renamed war-time to "${newName}"`);
-    } catch (err) {
-      console.error('❌ Failed to rename war-time channel:', err);
+      await warChannel.setName(newName);
+      console.log(`✏️ Renamed #${warChannel.name} to "${newName}"`);
+    } catch (renameError) {
+      console.error('❌ Failed to rename channel:', renameError);
     }
   } catch (err) {
     console.error('❌ Reaction processing error:', err);
   } finally {
     try {
       await reaction.users.remove(user.id);
-    } catch (err) {
-      console.error('⚠️ Unable to remove reaction:', err);
+    } catch (removeErr) {
+      console.error('⚠️ Unable to remove reaction:', removeErr);
     }
   }
 });
