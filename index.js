@@ -169,4 +169,10 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN)
+  .then(() => console.log('✅ Bot login successful'))
+  .catch(err => {
+    console.error('❌ Bot login failed:', err);
+    process.exit(1); // Exit to make Render restart the service
+  });
+
