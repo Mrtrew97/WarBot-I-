@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const { Client, GatewayIntentBits, ChannelType, Partials, Events } = require('discord.js');
@@ -37,26 +36,34 @@ let warMessageId = null;
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
 
-  const guild = await client.guilds.fetch(process.env.GUILD_ID);
-  const botCommands = guild.channels.cache.get(process.env.BOT_COMMANDS_CHANNEL_ID);
-  const warChannel = guild.channels.cache.get(process.env.WAR_TIME_CHANNEL_ID);
+  try {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    await guild.channels.fetch(); // Ensure the channel cache is populated
 
-  if (!botCommands || !warChannel) {
-    console.error('❌ Required channels not found by ID.');
-    return;
+    const botCommands = guild.channels.cache.get(process.env.BOT_COMMANDS_CHANNEL_ID);
+    const warChannel = guild.channels.cache.get(process.env.WAR_TIME_CHANNEL_ID);
+
+    if (!botCommands || !warChannel) {
+      console.error('❌ Required channels not found by ID.');
+      return;
+    }
+
+    console.log('📢 Sending war status message...');
+    const warMessage = await botCommands.send({
+      content: `🛡️ **Alliance War Status**\n\n🔵 = No War\n🟢 = Active War\n🟡 = Active Skirmish\n🔴 = Emergency Need Everyone`,
+    });
+
+    warMessageId = warMessage.id;
+
+    for (const emoji of ['🔵', '🟢', '🟡', '🔴']) {
+      await warMessage.react(emoji);
+    }
+
+    console.log('✅ War status message sent and reactions added.');
+
+  } catch (error) {
+    console.error('❌ Failed during ready event:', error.message || error);
   }
-
-  const warMessage = await botCommands.send({
-    content: `🛡️ **Alliance War Status**\n\n🔵 = No War\n🟢 = Active War\n🟡 = Active Skirmish\n🔴 = Emergency Need Everyone`,
-  });
-
-  warMessageId = warMessage.id;
-
-  for (const emoji of ['🔵', '🟢', '🟡', '🔴']) {
-    await warMessage.react(emoji);
-  }
-
-  console.log('✅ War status message sent.');
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
@@ -73,10 +80,12 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     if (!newName) return;
 
     const guild = reaction.message.guild;
+    await guild.channels.fetch(); // Ensure updated channel cache
+
     const warChannel = guild.channels.cache.get(process.env.WAR_TIME_CHANNEL_ID);
     if (!warChannel) {
       console.error('❌ war-time channel not found by ID.');
-      await reaction.users.remove(user.id); // still reset emoji
+      await reaction.users.remove(user.id);
       return;
     }
 
@@ -90,10 +99,10 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     ]);
 
     console.log(`✏️ Renamed war-time to ${newName}`);
+
   } catch (err) {
     console.error('❌ Reaction handling failed or timed out:', err.message || err);
   } finally {
-    // Always reset the user's reaction (even on error/timeout)
     try {
       await reaction.users.remove(user.id);
     } catch (e) {
