@@ -13,6 +13,7 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server running on port ${PORT}`);
 });
 
+// Discord client setup
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -24,9 +25,10 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
+// Emoji to name map
 const EMOJI_TO_NAME = {
   '🔴': '🔴 Emergency',
-  '🔵': '🔵 No war Merit Trading Allowed',
+  '🔵': '🔵 No war',
   '🟢': '🟢 Active War',
   '🟡': '🟡 Active Skirmish',
 };
@@ -35,18 +37,35 @@ let warMessageId = null;
 
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
+  console.log('🔍 Starting guild and channel fetch...');
 
   try {
-    const guild = await client.guilds.fetch(process.env.GUILD_ID);
-    await guild.channels.fetch(); // Ensure the channel cache is populated
+    const guildId = process.env.GUILD_ID;
+    const botChannelId = process.env.BOT_COMMANDS_CHANNEL_ID;
+    const warChannelId = process.env.WAR_TIME_CHANNEL_ID;
 
-    const botCommands = guild.channels.cache.get(process.env.BOT_COMMANDS_CHANNEL_ID);
-    const warChannel = guild.channels.cache.get(process.env.WAR_TIME_CHANNEL_ID);
-
-    if (!botCommands || !warChannel) {
-      console.error('❌ Required channels not found by ID.');
+    if (!guildId || !botChannelId || !warChannelId) {
+      console.error('❌ One or more environment variables are missing.');
       return;
     }
+
+    const guild = await client.guilds.fetch(guildId);
+    console.log(`✅ Fetched guild: ${guild.name} (${guild.id})`);
+
+    await guild.channels.fetch(); // Ensures the cache is populated
+
+    const botCommands = guild.channels.cache.get(botChannelId);
+    const warChannel = guild.channels.cache.get(warChannelId);
+
+    if (!botCommands) {
+      console.error(`❌ BOT_COMMANDS_CHANNEL_ID (${botChannelId}) not found in guild.`);
+    }
+
+    if (!warChannel) {
+      console.error(`❌ WAR_TIME_CHANNEL_ID (${warChannelId}) not found in guild.`);
+    }
+
+    if (!botCommands || !warChannel) return;
 
     console.log('📢 Sending war status message...');
     const warMessage = await botCommands.send({
@@ -54,15 +73,16 @@ client.once('ready', async () => {
     });
 
     warMessageId = warMessage.id;
+    console.log(`✅ War status message sent. Message ID: ${warMessageId}`);
 
     for (const emoji of ['🔵', '🟢', '🟡', '🔴']) {
       await warMessage.react(emoji);
+      console.log(`➕ Reacted with ${emoji}`);
     }
 
-    console.log('✅ War status message sent and reactions added.');
-
+    console.log('✅ All reactions added successfully.');
   } catch (error) {
-    console.error('❌ Failed during ready event:', error.message || error);
+    console.error('❌ Error in ready event:', error.stack || error);
   }
 });
 
@@ -77,17 +97,20 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 
     const emoji = reaction.emoji.name;
     const newName = EMOJI_TO_NAME[emoji];
-    if (!newName) return;
+    if (!newName) {
+      console.log(`⚠️ Unknown emoji used: ${emoji}`);
+      return;
+    }
 
     const guild = reaction.message.guild;
-    await guild.channels.fetch(); // Ensure updated channel cache
-
     const warChannel = guild.channels.cache.get(process.env.WAR_TIME_CHANNEL_ID);
     if (!warChannel) {
       console.error('❌ war-time channel not found by ID.');
-      await reaction.users.remove(user.id);
+      await reaction.users.remove(user.id); // still reset emoji
       return;
     }
+
+    console.log(`✏️ Renaming channel ${warChannel.name} to ${newName}...`);
 
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('⏰ Rename timed out after 15 seconds.')), 15000)
@@ -98,17 +121,19 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
       timeoutPromise
     ]);
 
-    console.log(`✏️ Renamed war-time to ${newName}`);
-
+    console.log(`✅ Renamed war-time to ${newName}`);
   } catch (err) {
-    console.error('❌ Reaction handling failed or timed out:', err.message || err);
+    console.error('❌ Reaction handling failed or timed out:', err.stack || err);
   } finally {
     try {
       await reaction.users.remove(user.id);
+      console.log(`🔁 Removed ${user.username}'s reaction`);
     } catch (e) {
-      console.error('⚠️ Failed to remove reaction:', e.message || e);
+      console.error('⚠️ Failed to remove reaction:', e.stack || e);
     }
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).catch(err => {
+  console.error('❌ Failed to log in:', err.stack || err);
+});
