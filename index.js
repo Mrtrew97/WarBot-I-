@@ -26,6 +26,15 @@ if (!process.env.DISCORD_TOKEN) {
   console.error('❌ DISCORD_TOKEN is missing from environment variables!');
 }
 
+// Setup process-wide unhandled rejection and uncaught exception logging
+process.on('unhandledRejection', error => {
+  console.error('❌ Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', error => {
+  console.error('❌ Uncaught exception:', error);
+});
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -45,16 +54,6 @@ client.on('error', error => {
 client.on('shardError', error => {
   console.error('❌ Discord client shard error:', error);
 });
-
-// Emoji to name map
-const EMOJI_TO_NAME = {
-  '🔴': '🔴 Emergency',
-  '🔵': '🔵 No war',
-  '🟢': '🟢 Active War',
-  '🟡': '🟡 Active Skirmish',
-};
-
-let warMessageId = null;
 
 client.once('ready', async () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
@@ -107,14 +106,33 @@ client.once('ready', async () => {
   }
 });
 
+// Emoji to name map
+const EMOJI_TO_NAME = {
+  '🔴': '🔴 Emergency',
+  '🔵': '🔵 No war',
+  '🟢': '🟢 Active War',
+  '🟡': '🟡 Active Skirmish',
+};
+
+let warMessageId = null;
+
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
   if (user.bot) return;
 
   try {
-    if (reaction.partial) await reaction.fetch();
-    if (reaction.message.partial) await reaction.message.fetch();
+    if (reaction.partial) {
+      console.log('⚠️ Fetching partial reaction...');
+      await reaction.fetch();
+    }
+    if (reaction.message.partial) {
+      console.log('⚠️ Fetching partial message...');
+      await reaction.message.fetch();
+    }
 
-    if (reaction.message.id !== warMessageId) return;
+    if (reaction.message.id !== warMessageId) {
+      console.log(`ℹ️ Reaction on unrelated message ${reaction.message.id} ignored.`);
+      return;
+    }
 
     const emoji = reaction.emoji.name;
     const newName = EMOJI_TO_NAME[emoji];
@@ -155,8 +173,10 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 });
 
+console.log('🔑 Starting Discord client login...');
 client.login(process.env.DISCORD_TOKEN)
   .then(() => console.log('✅ Discord client login successful.'))
   .catch(err => {
     console.error('❌ Discord client login failed:', err.stack || err);
   });
+console.log('⌛ client.login() called');
