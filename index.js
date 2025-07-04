@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const { Client, GatewayIntentBits, ChannelType, Partials, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, Events } = require('discord.js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,7 +37,6 @@ let warMessageId = null;
 
 client.once('ready', async () => {
   console.log(`🤖 Logged in as ${client.user.tag}`);
-  console.log('🔍 Starting guild and channel fetch...');
 
   try {
     const guildId = process.env.GUILD_ID;
@@ -45,27 +44,27 @@ client.once('ready', async () => {
     const warChannelId = process.env.WAR_TIME_CHANNEL_ID;
 
     if (!guildId || !botChannelId || !warChannelId) {
-      console.error('❌ One or more environment variables are missing.');
+      console.error('❌ One or more environment variables are missing: GUILD_ID, BOT_COMMANDS_CHANNEL_ID, WAR_TIME_CHANNEL_ID');
       return;
     }
 
     const guild = await client.guilds.fetch(guildId);
     console.log(`✅ Fetched guild: ${guild.name} (${guild.id})`);
 
-    await guild.channels.fetch(); // Ensures the cache is populated
+    await guild.channels.fetch(); // Populate cache
 
     const botCommands = guild.channels.cache.get(botChannelId);
     const warChannel = guild.channels.cache.get(warChannelId);
 
     if (!botCommands) {
       console.error(`❌ BOT_COMMANDS_CHANNEL_ID (${botChannelId}) not found in guild.`);
+      return;
     }
 
     if (!warChannel) {
       console.error(`❌ WAR_TIME_CHANNEL_ID (${warChannelId}) not found in guild.`);
+      return;
     }
-
-    if (!botCommands || !warChannel) return;
 
     console.log('📢 Sending war status message...');
     const warMessage = await botCommands.send({
@@ -134,6 +133,17 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN).catch(err => {
-  console.error('❌ Failed to log in:', err.stack || err);
+// Extra logging around login
+client.login(process.env.DISCORD_TOKEN).then(() => {
+  console.log('✅ Discord client logged in successfully');
+}).catch(err => {
+  console.error('❌ Discord login failed:', err.stack || err);
+});
+
+// Catch uncaught exceptions and unhandled rejections
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err.stack || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 Unhandled Rejection:', reason.stack || reason);
 });
