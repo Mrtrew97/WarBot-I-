@@ -13,16 +13,37 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server running on port ${PORT}`);
 });
 
-// Discord client setup
+// Log environment variables (except token) for debugging
+console.log('🔎 Checking environment variables...');
+console.log({
+  tokenPresent: !!process.env.DISCORD_TOKEN,
+  guildId: process.env.GUILD_ID || 'MISSING',
+  botCommandsChannelId: process.env.BOT_COMMANDS_CHANNEL_ID || 'MISSING',
+  warTimeChannelId: process.env.WAR_TIME_CHANNEL_ID || 'MISSING'
+});
+
+if (!process.env.DISCORD_TOKEN) {
+  console.error('❌ DISCORD_TOKEN is missing from environment variables!');
+}
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+});
+
+// Add error listeners for debugging connection issues
+client.on('error', error => {
+  console.error('❌ Discord client error:', error);
+});
+
+client.on('shardError', error => {
+  console.error('❌ Discord client shard error:', error);
 });
 
 // Emoji to name map
@@ -36,7 +57,8 @@ const EMOJI_TO_NAME = {
 let warMessageId = null;
 
 client.once('ready', async () => {
-  console.log(`🤖 Logged in as ${client.user.tag}`);
+  console.log(`✅ Logged in as ${client.user.tag}`);
+  console.log('🔍 Starting guild and channel fetch...');
 
   try {
     const guildId = process.env.GUILD_ID;
@@ -44,27 +66,27 @@ client.once('ready', async () => {
     const warChannelId = process.env.WAR_TIME_CHANNEL_ID;
 
     if (!guildId || !botChannelId || !warChannelId) {
-      console.error('❌ One or more environment variables are missing: GUILD_ID, BOT_COMMANDS_CHANNEL_ID, WAR_TIME_CHANNEL_ID');
+      console.error('❌ One or more environment variables are missing. Aborting.');
       return;
     }
 
     const guild = await client.guilds.fetch(guildId);
     console.log(`✅ Fetched guild: ${guild.name} (${guild.id})`);
 
-    await guild.channels.fetch(); // Populate cache
+    await guild.channels.fetch();
 
     const botCommands = guild.channels.cache.get(botChannelId);
     const warChannel = guild.channels.cache.get(warChannelId);
 
     if (!botCommands) {
       console.error(`❌ BOT_COMMANDS_CHANNEL_ID (${botChannelId}) not found in guild.`);
-      return;
     }
 
     if (!warChannel) {
       console.error(`❌ WAR_TIME_CHANNEL_ID (${warChannelId}) not found in guild.`);
-      return;
     }
+
+    if (!botCommands || !warChannel) return;
 
     console.log('📢 Sending war status message...');
     const warMessage = await botCommands.send({
@@ -133,17 +155,8 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 });
 
-// Extra logging around login
-client.login(process.env.DISCORD_TOKEN).then(() => {
-  console.log('✅ Discord client logged in successfully');
-}).catch(err => {
-  console.error('❌ Discord login failed:', err.stack || err);
-});
-
-// Catch uncaught exceptions and unhandled rejections
-process.on('uncaughtException', (err) => {
-  console.error('💥 Uncaught Exception:', err.stack || err);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('💥 Unhandled Rejection:', reason.stack || reason);
-});
+client.login(process.env.DISCORD_TOKEN)
+  .then(() => console.log('✅ Discord client login successful.'))
+  .catch(err => {
+    console.error('❌ Discord client login failed:', err.stack || err);
+  });
